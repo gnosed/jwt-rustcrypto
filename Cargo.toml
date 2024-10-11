@@ -3,6 +3,12 @@ name = "jwt-rustcrypto"
 version = "0.1.0"
 edition = "2021"
 
+description = "Library for encoding, decoding, and validating JSON Web Tokens (JWTs) implemented using Rust Crypto libraries."
+license = "MIT"
+repository = "https://github.com/robjsliwa/jwt-rustcrypto"
+homepage = "https://github.com/robjsliwa/jwt-rustcrypto"
+documentation = "https://docs.rs/jwt-rustcrypto"
+
 [dependencies]
 base64 = "0.22.1"
 ecdsa = "0.16.9"
