@@ -82,26 +82,32 @@ impl PemEncodedKey {
                 // Handle generic private, public key, or certificate tags
                 tag @ ("PRIVATE KEY" | "PUBLIC KEY" | "CERTIFICATE") => {
                     // Classify the key based on its ASN.1 structure
-                    let classification = Self::classify_pem(&asn1_content)
-                        .ok_or(Error::InvalidKeyFormat)?;
-    
+                    let classification =
+                        Self::classify_pem(&asn1_content).ok_or(Error::InvalidKeyFormat)?;
+
                     // Determine if the key is a private key or not
                     let is_private = tag == "PRIVATE KEY";
                     let pem_type = Self::determine_pem_type(classification, is_private);
-    
+
                     // Determine the standard based on ASN.1 structure if possible
+                    #[allow(clippy::if_same_then_else)]
                     let standard = if tag == "PRIVATE KEY" || tag == "PUBLIC KEY" {
                         Standard::Pkcs8 // Private and public keys are generally PKCS8 formatted if tag is generic
                     } else {
-                        // Certificates might follow a different format
+                        // TODO: sCertificates might follow a different format
                         Standard::Pkcs8 // Assuming PKCS8 as a fallback
                     };
-    
-                    Ok(Self::create_pem_key(content, asn1_content, pem_type, standard))
+
+                    Ok(Self::create_pem_key(
+                        content,
+                        asn1_content,
+                        pem_type,
+                        standard,
+                    ))
                 }
                 _ => Err(Error::InvalidKeyFormat),
             })
-    }    
+    }
 
     fn create_pem_key(
         content: pem::Pem,
@@ -143,16 +149,15 @@ impl PemEncodedKey {
                     Self::classify_pem(entries)
                 }
             }
-    
+
             // Direct OID checks for EC, RSA, and ED public key identifiers
             ASN1Block::ObjectIdentifier(_, oid) if *oid == *EC_PUBLIC_KEY_OID => Some(Classification::Ec),
             ASN1Block::ObjectIdentifier(_, oid) if *oid == *RSA_PUBLIC_KEY_OID => Some(Classification::Rsa),
             ASN1Block::ObjectIdentifier(_, oid) if *oid == *ED25519_OID => Some(Classification::Ed),
-    
+
             _ => None,
         })
     }
-    
 
     pub fn as_ec_private_key(&self) -> Result<&[u8], Error> {
         self.check_key_type(Standard::Pkcs8, PemType::EcPrivate)
