@@ -1,0 +1,29 @@
+[package]
+name = "jwt-rustcrypto"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+base64 = "0.22.1"
+ecdsa = "0.16.9"
+hmac = "0.12.1"
+k256 = "0.13.4"
+lazy_static = "1.5.0"
+p256 = "0.13.2"
+p384 = "0.13.0"
+p521 = "0.13.3"
+pem = "3.0.4"
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+rsa = "0.9.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = { version="0.10.8", features=["oid"] }
+simple_asn1 = "0.6.2"
+thiserror = "1.0.64"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen = "0.2" # Add wasm-bindgen
+
+[lib]
+crate-type = ["cdylib", "rlib"]
