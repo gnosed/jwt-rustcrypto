@@ -34,7 +34,7 @@ pub use decode::*;
 pub(crate) use ecdsa_signing::*;
 pub use encode::*;
 pub use error::Error;
-pub use header::Header;
+pub use header::{Header, Jwk};
 pub(crate) use hmac_signing::*;
 pub(crate) use pem::*;
 use rsa_signing::*;

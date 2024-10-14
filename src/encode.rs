@@ -1,5 +1,6 @@
 use crate::{sign_es, sign_hmac, sign_rsa, Algorithm, Error, Header, SigningKey};
 use base64::Engine;
+use serde::Serialize;
 use serde_json::Value as JsonValue;
 
 /// Encodes a JWT using the provided header, signing key, and payload.
@@ -20,13 +21,14 @@ use serde_json::Value as JsonValue;
 /// let encoded = encode(&header, &signing_key, &payload);
 /// assert!(encoded.is_ok());
 /// ```
-pub fn encode(
+pub fn encode<T: Serialize>(
     header: &Header,
     signing_key: &SigningKey,
-    payload: &JsonValue,
+    payload: &T,
 ) -> Result<String, Error> {
     let header_json = serde_json::to_value(header)?;
-    let signing_input = get_signing_input(payload, &header_json)?;
+    let payload_json = serde_json::to_value(payload)?;
+    let signing_input = get_signing_input(&payload_json, &header_json)?;
 
     let signature = match header.alg {
         Algorithm::HS256 | Algorithm::HS384 | Algorithm::HS512 => {

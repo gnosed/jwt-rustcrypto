@@ -1,4 +1,6 @@
 use crate::Error;
+use rsa::BigUint;
+use rsa::{pkcs1::EncodeRsaPublicKey, RsaPublicKey};
 use simple_asn1::ASN1Block;
 
 use lazy_static::lazy_static;
@@ -10,7 +12,7 @@ lazy_static! {
     static ref ED25519_OID: simple_asn1::OID = simple_asn1::oid!(1, 3, 101, 112);
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum PemType {
     EcPublic,
     EcPrivate,
@@ -21,7 +23,7 @@ pub enum PemType {
 }
 
 /// PEM key standards
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Standard {
     Pkcs1,
     Pkcs8,
@@ -35,7 +37,7 @@ pub(crate) enum Classification {
     Rsa,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PemEncodedKey {
     pub content: pem::Pem,
     pub asn1: Vec<ASN1Block>,
@@ -157,6 +159,14 @@ impl PemEncodedKey {
 
             _ => None,
         })
+    }
+
+    pub fn from_rsa_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+        let public_key = RsaPublicKey::new(BigUint::from_bytes_be(n), BigUint::from_bytes_be(e))?;
+        let pem_str = public_key.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF)?;
+        let pem = pem::parse(pem_str)?;
+
+        Self::process_parsed_pem(pem)
     }
 
     pub fn as_ec_private_key(&self) -> Result<&[u8], Error> {
