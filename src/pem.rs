@@ -1,6 +1,9 @@
 use crate::Error;
+use rsa::pkcs1::DecodeRsaPublicKey;
+use rsa::pkcs8::DecodePublicKey;
+use rsa::pkcs8::EncodePublicKey;
 use rsa::BigUint;
-use rsa::{pkcs1::EncodeRsaPublicKey, RsaPublicKey};
+use rsa::RsaPublicKey;
 use simple_asn1::ASN1Block;
 
 use lazy_static::lazy_static;
@@ -163,8 +166,8 @@ impl PemEncodedKey {
 
     pub fn from_rsa_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
         let public_key = RsaPublicKey::new(BigUint::from_bytes_be(n), BigUint::from_bytes_be(e))?;
-        let pem_str = public_key.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF)?;
-        let pem = pem::parse(pem_str)?;
+        let pub_pem = public_key.to_public_key_pem(rsa::pkcs8::LineEnding::LF)?;
+        let pem = pem::parse(pub_pem)?;
 
         Self::process_parsed_pem(pem)
     }
@@ -189,10 +192,13 @@ impl PemEncodedKey {
             .and_then(|_| Self::extract_first_bitstring(&self.asn1))
     }
 
-    pub fn as_rsa_key(&self) -> Result<&[u8], Error> {
-        match self.standard {
-            Standard::Pkcs1 | Standard::Pkcs8 => Self::extract_first_bitstring(&self.asn1),
-        }
+    pub fn as_rsa_public_key(&self) -> Result<RsaPublicKey, Error> {
+        let key = match self.standard {
+            Standard::Pkcs1 => RsaPublicKey::from_pkcs1_pem(&pem::encode(&self.content))?,
+            Standard::Pkcs8 => RsaPublicKey::from_public_key_pem(&pem::encode(&self.content))?,
+        };
+
+        Ok(key)
     }
 
     fn check_key_type(

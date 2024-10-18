@@ -38,7 +38,7 @@ impl ValidationOptions {
     }
 
     /// Disable expiration (`exp`) validation.
-    pub fn without_expiry() -> Self {
+    pub fn without_expiry(self) -> Self {
         Self {
             validate_exp: false,
             ..Self::default()
