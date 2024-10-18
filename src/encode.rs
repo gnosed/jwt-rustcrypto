@@ -148,6 +148,7 @@ mod tests {
 
         let encoded = encode(&header, &signing_key, &payload);
         assert!(encoded.is_ok());
+        println!("JWT {}", encoded.unwrap());
     }
 
     #[test]

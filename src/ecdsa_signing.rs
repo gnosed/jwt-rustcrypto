@@ -20,19 +20,27 @@ impl EcSigningSchema {
         let signature_bytes = match self {
             EcSigningSchema::Es256(signer) => {
                 let signature: P256Signature = signer.sign(data);
-                signature.to_der().as_bytes().to_vec()
+                // signature.to_der().as_bytes().to_vec()
+                let (r, s) = signature.split_bytes();
+                [r.as_slice(), s.as_slice()].concat()
             }
             EcSigningSchema::Es256k(signer) => {
                 let signature: K256Signature = signer.sign(data);
-                signature.to_der().as_bytes().to_vec()
+                // signature.to_der().as_bytes().to_vec()
+                let (r, s) = signature.split_bytes();
+                [r.as_slice(), s.as_slice()].concat()
             }
             EcSigningSchema::Es384(signer) => {
                 let signature: P384Signature = signer.sign(data);
-                signature.to_der().as_bytes().to_vec()
+                // signature.to_der().as_bytes().to_vec()
+                let (r, s) = signature.split_bytes();
+                [r.as_slice(), s.as_slice()].concat()
             }
             EcSigningSchema::Es512(signer) => {
                 let signature: P521Signature = signer.sign(data);
-                signature.to_der().as_bytes().to_vec()
+                // signature.to_der().as_bytes().to_vec()
+                let (r, s) = signature.split_bytes();
+                [r.as_slice(), s.as_slice()].concat()
             }
         };
         Ok(signature_bytes)
