@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 // #[cfg(target_arch = "wasm32")]
 // extern crate wasm_bindgen;
 

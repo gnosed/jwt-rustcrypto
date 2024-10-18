@@ -9,6 +9,9 @@ repository = "https://github.com/robjsliwa/jwt-rustcrypto"
 homepage = "https://github.com/robjsliwa/jwt-rustcrypto"
 documentation = "https://docs.rs/jwt-rustcrypto"
 
+[package.metadata.docs.rs]
+readme = true
+
 [dependencies]
 base64 = "0.22.1"
 ecdsa = "0.16.9"
