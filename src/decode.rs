@@ -4,11 +4,12 @@ use crate::{
     ValidationOptions, VerifyingKey,
 };
 use base64::Engine;
+use ecdsa::der::Signature as EcdsaDerSignature;
 use hmac::{Hmac, Mac};
-use k256::{ecdsa::Signature as K256Signature, ecdsa::VerifyingKey as K256VerifyingKey};
-use p256::{ecdsa::Signature as P256Signature, ecdsa::VerifyingKey as P256VerifyingKey};
-use p384::{ecdsa::Signature as P384Signature, ecdsa::VerifyingKey as P384VerifyingKey};
-use p521::{ecdsa::Signature as P521Signature, ecdsa::VerifyingKey as P521VerifyingKey};
+use k256::ecdsa::VerifyingKey as K256VerifyingKey;
+use p256::ecdsa::VerifyingKey as P256VerifyingKey;
+use p384::ecdsa::VerifyingKey as P384VerifyingKey;
+use p521::ecdsa::VerifyingKey as P521VerifyingKey;
 use rsa::signature::Verifier as RsaVerifier;
 use rsa::{
     pkcs1v15::Signature as Pkcs1v15Signature, pkcs1v15::VerifyingKey as Pkcs1v15VerifyingKey,
@@ -16,6 +17,7 @@ use rsa::{
 };
 use serde_json::Value as JsonValue;
 use sha2::{Sha256, Sha384, Sha512};
+use simple_asn1::{to_der, ASN1Block, BigUint};
 
 #[derive(Debug, Clone)]
 pub struct DecodedJwt {
@@ -241,8 +243,8 @@ fn verify_ecdsa(
         Algorithm::ES256 => {
             let verifying_key = P256VerifyingKey::from_sec1_bytes(public_key_bytes)
                 .map_err(|_| Error::InvalidEcdsaKey)?;
-            let ecdsa_signature =
-                P256Signature::from_der(signature).map_err(|_| Error::InvalidSignature)?;
+            let ecdsa_signature_vec = determine_signature_type(signature, 64);
+            let ecdsa_signature = EcdsaDerSignature::from_bytes(&ecdsa_signature_vec)?;
             verifying_key
                 .verify(signing_input.as_bytes(), &ecdsa_signature)
                 .map_err(|_| Error::InvalidSignature)
@@ -250,8 +252,8 @@ fn verify_ecdsa(
         Algorithm::ES256K => {
             let verifying_key = K256VerifyingKey::from_sec1_bytes(public_key_bytes)
                 .map_err(|_| Error::InvalidEcdsaKey)?;
-            let ecdsa_signature =
-                K256Signature::from_der(signature).map_err(|_| Error::InvalidSignature)?;
+            let ecdsa_signature_vec = determine_signature_type(signature, 64);
+            let ecdsa_signature = EcdsaDerSignature::from_bytes(&ecdsa_signature_vec)?;
             verifying_key
                 .verify(signing_input.as_bytes(), &ecdsa_signature)
                 .map_err(|_| Error::InvalidSignature)
@@ -259,8 +261,8 @@ fn verify_ecdsa(
         Algorithm::ES384 => {
             let verifying_key = P384VerifyingKey::from_sec1_bytes(public_key_bytes)
                 .map_err(|_| Error::InvalidEcdsaKey)?;
-            let ecdsa_signature =
-                P384Signature::from_der(signature).map_err(|_| Error::InvalidSignature)?;
+            let ecdsa_signature_vec = determine_signature_type(signature, 96);
+            let ecdsa_signature = EcdsaDerSignature::from_bytes(&ecdsa_signature_vec)?;
             verifying_key
                 .verify(signing_input.as_bytes(), &ecdsa_signature)
                 .map_err(|_| Error::InvalidSignature)
@@ -268,13 +270,33 @@ fn verify_ecdsa(
         Algorithm::ES512 => {
             let verifying_key = P521VerifyingKey::from_sec1_bytes(public_key_bytes)
                 .map_err(|_| Error::InvalidEcdsaKey)?;
-            let ecdsa_signature =
-                P521Signature::from_der(signature).map_err(|_| Error::InvalidSignature)?;
+            let ecdsa_signature_vec = determine_signature_type(signature, 132);
+            let ecdsa_signature = EcdsaDerSignature::from_bytes(&ecdsa_signature_vec)?;
             verifying_key
-                .verify(signing_input.as_bytes(), &ecdsa_signature)
+                .verify(signing_input.as_bytes(), &ecdsa_signature.try_into()?)
                 .map_err(|_| Error::InvalidSignature)
         }
         _ => Err(Error::UnsupportedAlgorithm),
+    }
+}
+
+fn determine_signature_type(signature: &[u8], signature_len: usize) -> Vec<u8> {
+    // convert signature to DER format if already not in DER format
+    if signature.len() == signature_len {
+        let r = &signature[..signature_len / 2];
+        let s = &signature[signature_len / 2..];
+
+        let asn1_signature = ASN1Block::Sequence(
+            0,
+            vec![
+                ASN1Block::Integer(0, BigUint::from_bytes_be(r).into()),
+                ASN1Block::Integer(0, BigUint::from_bytes_be(s).into()),
+            ],
+        );
+
+        to_der(&asn1_signature).unwrap()
+    } else {
+        signature.to_vec()
     }
 }
 
@@ -600,15 +622,39 @@ mod tests {
         assert_eq!(decoded.header.alg, Algorithm::HS256);
     }
 
-    // #[test]
-    // fn test_existing_ecdsa_signed_jwt() {
-    //     let pubkey_str = load_key("test_pub_es256_pkcs8.pem");
-    //     let test_jwt: &str = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.tyh-VfuzIxCyGYDlkBA7DfyjrqmSHu6pQ2hoZuFqUSLPNY2N0mpHb3nk5K17HWP_3cYHBw7AhHale5wky6-sVA";
-    //     let verifying_key = VerifyingKey::from_ec_pem(pubkey_str.as_bytes()).unwrap();
-    //     let validation_options = ValidationOptions::default()
-    //         .with_algorithm(Algorithm::ES256)
-    //         .without_expiry();
-    //     let result = decode(test_jwt, &verifying_key, &validation_options);
-    //     assert!(result.is_ok(), "ES256 decoding failed: {:?}", result.err());
-    // }
+    #[test]
+    fn test_existing_es256_signed_jwt() {
+        let pubkey_str = load_key("test_pub_es256_pkcs8.pem");
+        let test_jwt: &str = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.tyh-VfuzIxCyGYDlkBA7DfyjrqmSHu6pQ2hoZuFqUSLPNY2N0mpHb3nk5K17HWP_3cYHBw7AhHale5wky6-sVA";
+        let verifying_key = VerifyingKey::from_ec_pem(pubkey_str.as_bytes()).unwrap();
+        let validation_options = ValidationOptions::default()
+            .with_algorithm(Algorithm::ES256)
+            .without_expiry();
+        let result = decode(test_jwt, &verifying_key, &validation_options);
+        assert!(result.is_ok(), "ES256 decoding failed: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_existing_es384_signed_jwt() {
+        let pubkey_str = load_key("test_pub_es384_pkcs8.pem");
+        let test_jwt: &str = "eyJhbGciOiJFUzM4NCIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.VUPWQZuClnkFbaEKCsPy7CZVMh5wxbCSpaAWFLpnTe9J0--PzHNeTFNXCrVHysAa3eFbuzD8_bLSsgTKC8SzHxRVSj5eN86vBPo_1fNfE7SHTYhWowjY4E_wuiC13yoj";
+        let verifying_key = VerifyingKey::from_ec_pem(pubkey_str.as_bytes()).unwrap();
+        let validation_options = ValidationOptions::default()
+            .with_algorithm(Algorithm::ES384)
+            .without_expiry();
+        let result = decode(test_jwt, &verifying_key, &validation_options);
+        assert!(result.is_ok(), "ES384 decoding failed: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_existing_es512_signed_jwt() {
+        let pubkey_str = load_key("test_pub_es512_pkcs8.pem");
+        let test_jwt: &str = "eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.AbVUinMiT3J_03je8WTOIl-VdggzvoFgnOsdouAs-DLOtQzau9valrq-S6pETyi9Q18HH-EuwX49Q7m3KC0GuNBJAc9Tksulgsdq8GqwIqZqDKmG7hNmDzaQG1Dpdezn2qzv-otf3ZZe-qNOXUMRImGekfQFIuH_MjD2e8RZyww6lbZk";
+        let verifying_key = VerifyingKey::from_ec_pem(pubkey_str.as_bytes()).unwrap();
+        let validation_options = ValidationOptions::default()
+            .with_algorithm(Algorithm::ES512)
+            .without_expiry();
+        let result = decode(test_jwt, &verifying_key, &validation_options);
+        assert!(result.is_ok(), "ES512 decoding failed: {:?}", result.err());
+    }
 }
