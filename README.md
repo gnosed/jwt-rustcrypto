@@ -15,45 +15,27 @@ jwt-rustcrypto = "0.1.0"
 
 ```rust
 use serde_json::json;
-use rust_jwt::{Algorithm, Header, SigningKey, VerifyingKey, encode, decode, ValidationOptions};
+use jwt_rustcrypto::{Algorithm, Header, SigningKey, VerifyingKey, encode, decode, ValidationOptions};
 
-fn main() {
-    let header = Header::new(Algorithm::HS256);
-    let payload = json!({
-        "sub": "1234567890",
-        "name": "John Doe",
-        "iat": 1516239022
-    });
+let header = Header::new(Algorithm::HS256);
+let signing_key = SigningKey::from_secret(b"mysecret");
+let payload = json!({ "sub": "1234567890", "name": "John Doe", "iat": 1516239022 });
 
-    let signing_key = SigningKey::from_secret(b"mysecret");
-
-    let jwt = encode(&header, &signing_key, &payload).expect("Failed to encode JWT");
-    println!("Encoded JWT: {}", jwt);
-
-    let verifying_key = VerifyingKey::from_secret(b"mysecret");
-
-    let validation_options = ValidationOptions::default().with_algorithm(Algorithm::HS256);
-
-    let decoded = decode(&jwt, &verifying_key, &validation_options)
-        .expect("Failed to decode or validate JWT");
-
-    println!("Decoded Header: {:?}", decoded.header);
-    println!("Decoded Payload: {:?}", decoded.payload);
-}
+let encoded = encode(&header, &signing_key, &payload);
+assert!(encoded.is_ok());
+println!("JWT {}", encoded.unwrap());
 ```
 
 ### Example: Decoding Only (No Signature Verification)
 
 ```rust
-use rust_jwt::{decode_only};
+use jwt_rustcrypto::{decode_only};
 
-fn main() {
-    let token = "your_jwt_here";
-    let decoded = decode_only(token).expect("Failed to decode JWT");
+let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+let decoded = decode_only(token).expect("Failed to decode JWT");
 
-    println!("Decoded Header: {:?}", decoded.header);
-    println!("Decoded Payload: {:?}", decoded.payload);
-}
+println!("Decoded Header: {:?}", decoded.header);
+println!("Decoded Payload: {:?}", decoded.payload);
 ```
 
 ## Supported Algorithms
@@ -105,7 +87,7 @@ cargo test
 To create a signed JWT, you need a header, payload, and a signing key. Use the `encode` function to generate a signed JWT:
 
 ```rust
-use rust_jwt::{Header, SigningKey, encode};
+use jwt_rustcrypto::{Algorithm, Header, SigningKey, encode, decode};
 use serde_json::json;
 
 let header = Header::new(Algorithm::HS256);
@@ -115,6 +97,8 @@ let payload = json!({
     "iat": 1516239022
 });
 let signing_key = SigningKey::from_secret(b"mysecret");
+let header = Header::new(Algorithm::HS256);
+let payload = json!({ "sub": "1234567890", "name": "John Doe", "iat": 1516239022 });
 
 let token = encode(&header, &signing_key, &payload).expect("Failed to encode JWT");
 ```
@@ -124,11 +108,16 @@ let token = encode(&header, &signing_key, &payload).expect("Failed to encode JWT
 To decode and validate a JWT, use the `decode` function along with the verification key and validation options:
 
 ```rust
-use rust_jwt::{decode, VerifyingKey, ValidationOptions, Algorithm};
+use jwt_rustcrypto::{decode, encode, Header, SigningKey, VerifyingKey, ValidationOptions, Algorithm};
+use serde_json::json;
 
+let signing_key = SigningKey::from_secret(b"mysecret");
 let verification_key = VerifyingKey::from_secret(b"mysecret");
-let validation_options = ValidationOptions::default().with_algorithm(Algorithm::HS256);
+let validation_options = ValidationOptions::default().with_algorithm(Algorithm::HS256).without_expiry();
+let header = Header::new(Algorithm::HS256);
+let payload = json!({ "sub": "1234567890", "name": "John Doe", "iat": 1516239022 });
 
+let token = encode(&header, &signing_key, &payload).expect("Failed to encode JWT");
 let decoded = decode(&token, &verification_key, &validation_options).expect("Failed to decode JWT");
 println!("Decoded Header: {:?}", decoded.header);
 println!("Decoded Payload: {:?}", decoded.payload);
@@ -139,25 +128,46 @@ println!("Decoded Payload: {:?}", decoded.payload);
 To create a signed JWT using an RSA key, you need to load the private key and use it for signing:
 
 ```rust
-use rust_jwt::{Algorithm, Header, SigningKey, encode};
+use jwt_rustcrypto::{Algorithm, Header, SigningKey, encode};
 use serde_json::json;
 use std::fs;
 
-let rsa_private_key = fs::read_to_string("path/to/rsa_private_key.pem")
-    .expect("Failed to read RSA private key");
+let rsa_private_key = r#"-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCU72wNWzLQool2
++VviuF4rKaCFJurXyMKY2CDOY3WP+99cEG9rTvDRBQq6bnkb3bUDmz+hncVHLJiP
++eQqOLMVNuJ0dEMrbkQ8gbEviB4TScmlpqDbQ+qJTx+3cqMTnX99StTJ4yTTaVdP
+nId6rNOo3qwngl/DXuvCoQ1mregh1KQe8PaFsmlxmQ2SrPE/qnw0q6eM0CSRsEIg
+p0zOU8tFgnaNbcQ3LXgpz1+cku7WzJV8S90Fxw1IKPRR/8xzeGtyzSRyKpVlNje6
+8GlCg8bBnrpQnmb02MRrQi28Jdarh07rDhlRkU1WT71EL/tS6EvtNYXdD76sBCVJ
+TmXhlnyVAgMBAAECggEAAxAb2152LUV0D3oejwtJn7IFQ7FcM3N4HqdhoInGsvjA
+5czOVDLVNjpxt3A3YppTQBXv36wCxAb0kEMMYGeDT1SUoN58CMDSYggsxuFFKEWX
+m9keBirGADlPWd95ErMys9BXj46LUfAg3cATWgBQTgqRfpjqZtzLez8Cq1gfDDfV
+eMINKyxJHFABSSAX1NAfcJm/2vuBYN2oNNv+JdI1qlgL2onHFQmuOQl+H1SX2JEl
+IY7H1ATA39PRg8dTSYBo42qQ8jDmvVzgLVXOaOtWZJvZL8RalZVkqAPY8NncxyGF
+NlmzqfMCta6MCuxydB91ZXpAwuZnKuUz5CMPA9a4FQKBgQDGLlybTFckhXFZ0VXg
+fEn51quOMkvlMrRgd8F4JMI79+pq0KHaSM0EpCjOv3NqAectGQmbMQB8LuISreso
+ZuRyg2ScJSowbDu379ku/wOZpm5vSmBsfzHWas2jT1x4/6PYGnNMQKv1IkD9K4Eg
+0ewejTv4avU+ZZW30HMmV0iHJwKBgQDAYwNyWp+hprD9lC02DA5yDAZRgzWBltt2
+0NxyRXDV+CNZAfdn7xFPo6OcSzCeLVVglKjnJ4RCqFJJ6wjGsFz3ymXXql3bjvOY
+yYlQxEBfkHMAJb7N6We/lD8GNWZTffFNbsOsWUla9XsbI8vhbF/VrFIrtkKt6vZZ
+xJNiZQNT4wKBgQDAAlsm+6fScpeH9hHGFaV2sk40zvZJcf7hGCYSSUsG3wP3yXuH
+CdHZFVOUPFmN85oPT5rHCYr2xlWy015rHoVnjXYE8t0VXUfexjseFWVfkKiemukh
+NXsLyx7BgzqM4OHVloru7hmsvytIHsZVDg4+64eW/8nsUm/kT8nA9AAJMQKBgEBA
+EQOczlkPMWbOmLbHGf/ukiGg3zqzJgItSKIFHOTopO1x4a1dQvvE27wzxD3fR/ck
+TrA8G0ijrC+xhdHNTo8WkiKPbB8KQ8JP9EL797+ynyV6dZmRDKwHl3C8XrsdgXvp
+tQGXJA9zkjSDJPDY37ydeyfMC8LHiJR8OPiQYacfAoGBAKu0smpwESWQ1NrRMji0
+OUVLYDPyQqybgdYS6PAQiJYpKCCDNofCO676XqYC35ss4RweabgTL7VLsEL5Xz1x
+pt/agClszuk33DxAk7uqRgbZzVo5PBMhxA1AA9Xc9aho4f8tavTZWf9ARjncmYZd
+g/81VtrJi19YiFd+h0JnATsq
+-----END PRIVATE KEY-----"#;
 
 let header = Header::new(Algorithm::RS256);
-let payload = json!({
-    "sub": "1234567890",
-    "name": "John Doe",
-    "iat": 1516239022
-});
-let signing_key = SigningKey::from_rsa_pem(rsa_private_key.as_bytes())
-    .expect("Failed to create signing key from RSA private key");
+let signing_key =
+    SigningKey::from_rsa_pem(rsa_private_key.as_bytes()).unwrap();
+let payload = json!({ "sub": "1234567890", "name": "John Doe", "iat": 1516239022 });
 
-let token = encode(&header, &signing_key, &payload)
-    .expect("Failed to encode JWT with RSA key");
-println!("Encoded JWT with RSA Key: {}", token);
+let encoded = encode(&header, &signing_key, &payload);
+println!("JWT {}", encoded.unwrap());
 ```
 
 ### Decoding a JWT with RSA Key
@@ -165,17 +175,58 @@ println!("Encoded JWT with RSA Key: {}", token);
 To decode and verify a JWT using an RSA public key, use the decode function along with the verification key and validation options:
 
 ```rust
-use rust_jwt::{decode, VerifyingKey, ValidationOptions, Algorithm};
-use std::fs;
+use jwt_rustcrypto::{decode, encode, Header, SigningKey, VerifyingKey, ValidationOptions, Algorithm};
+use serde_json::json;
 
-let rsa_public_key = fs::read_to_string("path/to/rsa_public_key.pem")
-    .expect("Failed to read RSA public key");
+let rsa_private_key = r#"-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCU72wNWzLQool2
++VviuF4rKaCFJurXyMKY2CDOY3WP+99cEG9rTvDRBQq6bnkb3bUDmz+hncVHLJiP
++eQqOLMVNuJ0dEMrbkQ8gbEviB4TScmlpqDbQ+qJTx+3cqMTnX99StTJ4yTTaVdP
+nId6rNOo3qwngl/DXuvCoQ1mregh1KQe8PaFsmlxmQ2SrPE/qnw0q6eM0CSRsEIg
+p0zOU8tFgnaNbcQ3LXgpz1+cku7WzJV8S90Fxw1IKPRR/8xzeGtyzSRyKpVlNje6
+8GlCg8bBnrpQnmb02MRrQi28Jdarh07rDhlRkU1WT71EL/tS6EvtNYXdD76sBCVJ
+TmXhlnyVAgMBAAECggEAAxAb2152LUV0D3oejwtJn7IFQ7FcM3N4HqdhoInGsvjA
+5czOVDLVNjpxt3A3YppTQBXv36wCxAb0kEMMYGeDT1SUoN58CMDSYggsxuFFKEWX
+m9keBirGADlPWd95ErMys9BXj46LUfAg3cATWgBQTgqRfpjqZtzLez8Cq1gfDDfV
+eMINKyxJHFABSSAX1NAfcJm/2vuBYN2oNNv+JdI1qlgL2onHFQmuOQl+H1SX2JEl
+IY7H1ATA39PRg8dTSYBo42qQ8jDmvVzgLVXOaOtWZJvZL8RalZVkqAPY8NncxyGF
+NlmzqfMCta6MCuxydB91ZXpAwuZnKuUz5CMPA9a4FQKBgQDGLlybTFckhXFZ0VXg
+fEn51quOMkvlMrRgd8F4JMI79+pq0KHaSM0EpCjOv3NqAectGQmbMQB8LuISreso
+ZuRyg2ScJSowbDu379ku/wOZpm5vSmBsfzHWas2jT1x4/6PYGnNMQKv1IkD9K4Eg
+0ewejTv4avU+ZZW30HMmV0iHJwKBgQDAYwNyWp+hprD9lC02DA5yDAZRgzWBltt2
+0NxyRXDV+CNZAfdn7xFPo6OcSzCeLVVglKjnJ4RCqFJJ6wjGsFz3ymXXql3bjvOY
+yYlQxEBfkHMAJb7N6We/lD8GNWZTffFNbsOsWUla9XsbI8vhbF/VrFIrtkKt6vZZ
+xJNiZQNT4wKBgQDAAlsm+6fScpeH9hHGFaV2sk40zvZJcf7hGCYSSUsG3wP3yXuH
+CdHZFVOUPFmN85oPT5rHCYr2xlWy015rHoVnjXYE8t0VXUfexjseFWVfkKiemukh
+NXsLyx7BgzqM4OHVloru7hmsvytIHsZVDg4+64eW/8nsUm/kT8nA9AAJMQKBgEBA
+EQOczlkPMWbOmLbHGf/ukiGg3zqzJgItSKIFHOTopO1x4a1dQvvE27wzxD3fR/ck
+TrA8G0ijrC+xhdHNTo8WkiKPbB8KQ8JP9EL797+ynyV6dZmRDKwHl3C8XrsdgXvp
+tQGXJA9zkjSDJPDY37ydeyfMC8LHiJR8OPiQYacfAoGBAKu0smpwESWQ1NrRMji0
+OUVLYDPyQqybgdYS6PAQiJYpKCCDNofCO676XqYC35ss4RweabgTL7VLsEL5Xz1x
+pt/agClszuk33DxAk7uqRgbZzVo5PBMhxA1AA9Xc9aho4f8tavTZWf9ARjncmYZd
+g/81VtrJi19YiFd+h0JnATsq
+-----END PRIVATE KEY-----"#;
+let rsa_public_key = r#"-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlO9sDVsy0KKJdvlb4rhe
+KymghSbq18jCmNggzmN1j/vfXBBva07w0QUKum55G921A5s/oZ3FRyyYj/nkKjiz
+FTbidHRDK25EPIGxL4geE0nJpaag20PqiU8ft3KjE51/fUrUyeMk02lXT5yHeqzT
+qN6sJ4Jfw17rwqENZq3oIdSkHvD2hbJpcZkNkqzxP6p8NKunjNAkkbBCIKdMzlPL
+RYJ2jW3ENy14Kc9fnJLu1syVfEvdBccNSCj0Uf/Mc3hrcs0kciqVZTY3uvBpQoPG
+wZ66UJ5m9NjEa0ItvCXWq4dO6w4ZUZFNVk+9RC/7UuhL7TWF3Q++rAQlSU5l4ZZ8
+lQIDAQAB
+-----END PUBLIC KEY-----"#;
 
+let signing_key = SigningKey::from_rsa_pem(rsa_private_key.as_bytes())
+    .expect("Failed to create signing key from RSA private key");
 let verification_key = VerifyingKey::from_rsa_pem(rsa_public_key.as_bytes())
     .expect("Failed to create verifying key from RSA public key");
 
-let validation_options = ValidationOptions::default().with_algorithm(Algorithm::RS256);
+let header = Header::new(Algorithm::RS256);
+let validation_options = ValidationOptions::default().with_algorithm(Algorithm::RS256).without_expiry();
+let payload = json!({ "sub": "1234567890", "name": "John Doe", "iat": 1516239022 });
 
+let token = encode(&header, &signing_key, &payload)
+    .expect("Failed to encode JWT with RSA key");
 let decoded = decode(&token, &verification_key, &validation_options)
     .expect("Failed to decode or validate JWT with RSA key");
 
