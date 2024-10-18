@@ -1,6 +1,6 @@
 [package]
 name = "jwt-rustcrypto"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 description = "Library for encoding, decoding, and validating JSON Web Tokens (JWTs) implemented using Rust Crypto libraries."
