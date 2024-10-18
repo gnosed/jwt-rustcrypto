@@ -29,6 +29,10 @@ pub enum Error {
     InvalidRsaKeyType(String),
     #[error("ECDSA error: {0}")]
     InvalidEcdsaKeyType(#[from] ecdsa::Error),
+    #[error("RSA error: {0}")]
+    InvalidRsaKey(#[from] rsa::errors::Error),
+    #[error("Pkcs8 Spki error: {0}")]
+    Pkcs8SpkiError(#[from] k256::pkcs8::spki::Error),
     #[error("Expired signature")]
     ExpiredSignature,
     #[error("Immature signature")]

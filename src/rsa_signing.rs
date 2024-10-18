@@ -5,7 +5,7 @@ use rsa::pkcs8::DecodePrivateKey;
 use rsa::signature::RandomizedSigner;
 use rsa::signature::SignatureEncoding;
 use rsa::{pkcs1v15::SigningKey as Pkcs1SigningKey, pss::SigningKey as PssSigningKey};
-use sha2::{Digest, Sha256, Sha384, Sha512};
+use sha2::{Sha256, Sha384, Sha512};
 
 #[derive(Debug)]
 enum SigningSchema {
@@ -18,30 +18,19 @@ enum SigningSchema {
 }
 
 impl SigningSchema {
-    fn sign(&self, digest: &[u8]) -> Result<Vec<u8>, Error> {
+    fn sign(&self, data: &[u8]) -> Result<Vec<u8>, Error> {
         let mut rng = rand::thread_rng();
         let signature_bytes = match self {
-            SigningSchema::Pkcs1Sha256(signer) => signer.sign_with_rng(&mut rng, digest).to_vec(),
-            SigningSchema::Pkcs1Sha384(signer) => signer.sign_with_rng(&mut rng, digest).to_vec(),
-            SigningSchema::Pkcs1Sha512(signer) => signer.sign_with_rng(&mut rng, digest).to_vec(),
-            SigningSchema::PssSha256(signer) => signer.sign_with_rng(&mut rng, digest).to_vec(),
-            SigningSchema::PssSha384(signer) => signer.sign_with_rng(&mut rng, digest).to_vec(),
-            SigningSchema::PssSha512(signer) => signer.sign_with_rng(&mut rng, digest).to_vec(),
+            SigningSchema::Pkcs1Sha256(signer) => signer.sign_with_rng(&mut rng, data).to_vec(),
+            SigningSchema::Pkcs1Sha384(signer) => signer.sign_with_rng(&mut rng, data).to_vec(),
+            SigningSchema::Pkcs1Sha512(signer) => signer.sign_with_rng(&mut rng, data).to_vec(),
+            SigningSchema::PssSha256(signer) => signer.sign_with_rng(&mut rng, data).to_vec(),
+            SigningSchema::PssSha384(signer) => signer.sign_with_rng(&mut rng, data).to_vec(),
+            SigningSchema::PssSha512(signer) => signer.sign_with_rng(&mut rng, data).to_vec(),
         };
 
         Ok(signature_bytes)
     }
-}
-
-fn compute_digest(alg: &Algorithm, data: &str) -> Result<Vec<u8>, Error> {
-    let digest = match alg {
-        Algorithm::RS256 | Algorithm::PS256 => Sha256::digest(data.as_bytes()).to_vec(),
-        Algorithm::RS384 | Algorithm::PS384 => Sha384::digest(data.as_bytes()).to_vec(),
-        Algorithm::RS512 | Algorithm::PS512 => Sha512::digest(data.as_bytes()).to_vec(),
-        _ => return Err(Error::UnsupportedAlgorithm),
-    };
-
-    Ok(digest)
 }
 
 fn create_signing_scheme(
@@ -80,10 +69,8 @@ pub(crate) fn sign_rsa(
     signing_key: &SigningKey,
     alg: &Algorithm,
 ) -> Result<String, Error> {
-    let digest = compute_digest(alg, data)?;
-
     let signing_schema = create_signing_scheme(alg, signing_key)?;
-    let signature = signing_schema.sign(&digest)?;
+    let signature = signing_schema.sign(data.as_bytes())?;
 
     Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(signature))
 }

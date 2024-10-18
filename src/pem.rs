@@ -1,4 +1,9 @@
 use crate::Error;
+use rsa::pkcs1::DecodeRsaPublicKey;
+use rsa::pkcs8::DecodePublicKey;
+use rsa::pkcs8::EncodePublicKey;
+use rsa::BigUint;
+use rsa::RsaPublicKey;
 use simple_asn1::ASN1Block;
 
 use lazy_static::lazy_static;
@@ -10,7 +15,7 @@ lazy_static! {
     static ref ED25519_OID: simple_asn1::OID = simple_asn1::oid!(1, 3, 101, 112);
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum PemType {
     EcPublic,
     EcPrivate,
@@ -21,7 +26,7 @@ pub enum PemType {
 }
 
 /// PEM key standards
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Standard {
     Pkcs1,
     Pkcs8,
@@ -35,7 +40,7 @@ pub(crate) enum Classification {
     Rsa,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PemEncodedKey {
     pub content: pem::Pem,
     pub asn1: Vec<ASN1Block>,
@@ -159,6 +164,14 @@ impl PemEncodedKey {
         })
     }
 
+    pub fn from_rsa_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+        let public_key = RsaPublicKey::new(BigUint::from_bytes_be(n), BigUint::from_bytes_be(e))?;
+        let pub_pem = public_key.to_public_key_pem(rsa::pkcs8::LineEnding::LF)?;
+        let pem = pem::parse(pub_pem)?;
+
+        Self::process_parsed_pem(pem)
+    }
+
     pub fn as_ec_private_key(&self) -> Result<&[u8], Error> {
         self.check_key_type(Standard::Pkcs8, PemType::EcPrivate)
             .map(|_| self.content.contents())
@@ -179,10 +192,13 @@ impl PemEncodedKey {
             .and_then(|_| Self::extract_first_bitstring(&self.asn1))
     }
 
-    pub fn as_rsa_key(&self) -> Result<&[u8], Error> {
-        match self.standard {
-            Standard::Pkcs1 | Standard::Pkcs8 => Self::extract_first_bitstring(&self.asn1),
-        }
+    pub fn as_rsa_public_key(&self) -> Result<RsaPublicKey, Error> {
+        let key = match self.standard {
+            Standard::Pkcs1 => RsaPublicKey::from_pkcs1_pem(&pem::encode(&self.content))?,
+            Standard::Pkcs8 => RsaPublicKey::from_public_key_pem(&pem::encode(&self.content))?,
+        };
+
+        Ok(key)
     }
 
     fn check_key_type(

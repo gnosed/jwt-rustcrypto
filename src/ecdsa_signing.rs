@@ -7,7 +7,6 @@ use k256::{ecdsa::Signature as K256Signature, ecdsa::SigningKey as K256SigningKe
 use p256::{ecdsa::Signature as P256Signature, ecdsa::SigningKey as P256SigningKey};
 use p384::{ecdsa::Signature as P384Signature, ecdsa::SigningKey as P384SigningKey};
 use p521::{ecdsa::Signature as P521Signature, ecdsa::SigningKey as P521SigningKey};
-use sha2::{Digest, Sha256, Sha384, Sha512};
 
 enum EcSigningSchema {
     Es256(P256SigningKey),
@@ -20,24 +19,28 @@ impl EcSigningSchema {
     fn sign(&self, data: &[u8]) -> Result<Vec<u8>, Error> {
         let signature_bytes = match self {
             EcSigningSchema::Es256(signer) => {
-                let digest = Sha256::digest(data);
-                let signature: P256Signature = signer.sign(digest.as_slice());
-                signature.to_der().as_bytes().to_vec()
+                let signature: P256Signature = signer.sign(data);
+                // signature.to_der().as_bytes().to_vec()
+                let (r, s) = signature.split_bytes();
+                [r.as_slice(), s.as_slice()].concat()
             }
             EcSigningSchema::Es256k(signer) => {
-                let digest = Sha256::digest(data);
-                let signature: K256Signature = signer.sign(digest.as_slice());
-                signature.to_der().as_bytes().to_vec()
+                let signature: K256Signature = signer.sign(data);
+                // signature.to_der().as_bytes().to_vec()
+                let (r, s) = signature.split_bytes();
+                [r.as_slice(), s.as_slice()].concat()
             }
             EcSigningSchema::Es384(signer) => {
-                let digest = Sha384::digest(data);
-                let signature: P384Signature = signer.sign(digest.as_slice());
-                signature.to_der().as_bytes().to_vec()
+                let signature: P384Signature = signer.sign(data);
+                // signature.to_der().as_bytes().to_vec()
+                let (r, s) = signature.split_bytes();
+                [r.as_slice(), s.as_slice()].concat()
             }
             EcSigningSchema::Es512(signer) => {
-                let digest = Sha512::digest(data);
-                let signature: P521Signature = signer.sign(digest.as_slice());
-                signature.to_der().as_bytes().to_vec()
+                let signature: P521Signature = signer.sign(data);
+                // signature.to_der().as_bytes().to_vec()
+                let (r, s) = signature.split_bytes();
+                [r.as_slice(), s.as_slice()].concat()
             }
         };
         Ok(signature_bytes)

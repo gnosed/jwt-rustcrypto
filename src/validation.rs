@@ -24,6 +24,8 @@ pub struct ValidationOptions {
     pub subject: Option<String>,
     /// Allowed signing algorithms for the JWT.
     pub algorithms: HashSet<Algorithm>,
+    /// Required claims.
+    pub required_claims: Option<HashSet<String>>,
 }
 
 impl ValidationOptions {
@@ -36,7 +38,7 @@ impl ValidationOptions {
     }
 
     /// Disable expiration (`exp`) validation.
-    pub fn without_expiry() -> Self {
+    pub fn without_expiry(self) -> Self {
         Self {
             validate_exp: false,
             ..Self::default()
@@ -85,6 +87,16 @@ impl ValidationOptions {
         self.algorithms.insert(alg);
         self
     }
+
+    /// Add a required claim.
+    pub fn with_required_claim<T: ToString>(mut self, claim: T) -> Self {
+        if let Some(ref mut required_claims) = self.required_claims {
+            required_claims.insert(claim.to_string());
+        } else {
+            self.required_claims = Some(HashSet::from([claim.to_string()]));
+        }
+        self
+    }
 }
 
 impl Default for ValidationOptions {
@@ -97,6 +109,7 @@ impl Default for ValidationOptions {
             issuer: None,
             subject: None,
             algorithms: HashSet::new(),
+            required_claims: None,
         }
     }
 }
@@ -201,6 +214,17 @@ pub(crate) fn validate(
     };
 
     validate_audiences(claims.get("aud"), &options.audiences)?;
+
+    if let Some(ref required_claims) = options.required_claims {
+        for claim in required_claims {
+            if !claims.contains_key(claim) {
+                return Err(Error::InvalidClaim(format!(
+                    "Missing required claim: {}",
+                    claim
+                )));
+            }
+        }
+    }
 
     Ok(())
 }
@@ -409,5 +433,49 @@ mod tests {
         let options = ValidationOptions::default().with_algorithm(Algorithm::HS384);
         let result = validate_header(&header, &options);
         assert!(matches!(result, Err(Error::InvalidAlgorithm)));
+    }
+
+    #[test]
+    fn test_required_claims() {
+        let mut claims = Map::new();
+        claims.insert(
+            "exp".to_string(),
+            to_value(current_timestamp() + 3600).unwrap(),
+        );
+        claims.insert("sub".to_string(), json!("required_subject"));
+
+        let options = ValidationOptions::default().with_required_claim("sub");
+        let result = validate(&claims, &options);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_required_claims_fail() {
+        let mut claims = Map::new();
+        claims.insert(
+            "exp".to_string(),
+            to_value(current_timestamp() + 3600).unwrap(),
+        );
+
+        let options = ValidationOptions::default().with_required_claim("sub");
+        let result = validate(&claims, &options);
+        assert!(matches!(result, Err(Error::InvalidClaim(_))));
+    }
+
+    #[test]
+    fn test_required_claims_multiple() {
+        let mut claims = Map::new();
+        claims.insert(
+            "exp".to_string(),
+            to_value(current_timestamp() + 3600).unwrap(),
+        );
+        claims.insert("sub".to_string(), json!("required_subject"));
+        claims.insert("aud".to_string(), json!("required_audience"));
+
+        let options = ValidationOptions::default()
+            .with_required_claim("sub")
+            .with_required_claim("aud");
+        let result = validate(&claims, &options);
+        assert!(result.is_ok());
     }
 }
