@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::map::Map;
@@ -7,6 +8,23 @@ use serde_json::Value;
 use crate::Algorithm;
 use crate::Error;
 use crate::Header;
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(value: &str);
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = Date)]
+    fn now() -> f64;
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValidationOptions {
@@ -146,7 +164,6 @@ pub(crate) fn validate(
                     return Err(validation_error);
                 }
             } else {
-                // If the claim is required but missing, return a specific error.
                 return Err(missing_claim_error);
             }
         }
@@ -230,11 +247,17 @@ pub(crate) fn validate(
 }
 
 /// Gets the current timestamp in seconds since the UNIX epoch.
+#[cfg(not(target_arch = "wasm32"))]
 fn current_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("SystemTime before UNIX EPOCH")
         .as_secs()
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn current_timestamp() -> u64 {
+    (now() / 1000.0) as u64
 }
 
 #[cfg(test)]
