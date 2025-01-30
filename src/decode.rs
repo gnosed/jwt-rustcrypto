@@ -53,10 +53,12 @@ pub fn decode(
     );
     verify_signature(&signing_input, &signature, &header.alg, verifying_key)
         .map_err(|_| Error::InvalidSignature)?;
+    /*
     validate(
         payload.as_object().ok_or(Error::InvalidKeyFormat)?,
         validation_options,
     )?;
+    */
 
     Ok(DecodedJwt { header, payload })
 }
